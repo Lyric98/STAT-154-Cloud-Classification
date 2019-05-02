@@ -1,7 +1,7 @@
 # STAT-154-Cloud-Classification
 
-How to reproduce this entire lab
-==========================
+How to reproduce this project?
+=======================================
 
 1) Clone the github repository, maintaining the directory structure 
    git clone this repo
