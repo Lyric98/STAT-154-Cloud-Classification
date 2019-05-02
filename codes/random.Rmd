@@ -1,0 +1,264 @@
+---
+title: "EDA"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r}
+library(ggplot2)
+library(knitr)
+library(tidyverse)
+library(gridExtra)
+library(knitr)
+library(pander)
+library(e1071)
+library(caret)
+library(ROCR)
+library(randomForest)
+library(reshape2)
+library(leaps)
+library(ggvis)
+library(party)
+library(class)
+
+
+
+
+
+#plug your own image 
+
+image1 <- read.table("/Users/liyanran/Desktop/19Spring/STAT154/project/project2/image_data/image1.txt", quote="\"", comment.char="")
+image2 <- read.table("/Users/liyanran/Desktop/19Spring/STAT154/project/project2/image_data/image2.txt", quote="\"", comment.char="")
+image3 <- read.table("/Users/liyanran/Desktop/19Spring/STAT154/project/project2/image_data/image3.txt", quote="\"", comment.char="")
+
+image1 <- setNames(image1, c("y","x","label","NDAI","SD","CORR","DF","CF","BF","AF","AN"))
+image2 <- setNames(image2, c("y","x","label","NDAI","SD","CORR","DF","CF","BF","AF","AN"))
+image3 <- setNames(image3, c("y","x","label","NDAI","SD","CORR","DF","CF","BF","AF","AN"))
+
+image <- rbind(image1,image2,image3)
+
+# dim(image1)
+# dim(image2)
+# dim(image3)
+# 
+# summary(image1)
+# summary(image2)
+# summary(image3)
+# 
+# 
+# #adding an image number on a new column
+# image1$image <- "Image 1"
+# image2$image <- "Image 2"
+# image3$image <- "Image 3"
+# 
+# image <- rbind(image1,image2,image3)
+# 
+# 
+# ######################################################
+# 
+# #remove all unlabels and change no-cloud from -1 to 0
+# image_c <- image[image$label !=0,]
+# image_c$label[image_c$label==-1] <- 0
+# image_c$label <- factor(image_c$label)
+# 
+# 
+# image_lb <- image[image$label !=0,]
+# image_lb$label[image_lb$label==1] <- "cloud"
+# image_lb$label[image_lb$label==-1] <- "no-cloud"
+# image_lb$label <- factor(image_lb$label)
+# 
+# 
+# 
+# #1(b)
+# 
+# # image with labels (figure1)
+# ggplot(image_lb) + geom_point(aes(x=x,y=y,color=factor(label))) + scale_color_discrete(name="label") + theme_bw() + theme(panel.grid = element_blank()) + facet_grid(.~image)+ coord_fixed()
+# 
+# 
+# 
+# #1(c)
+# # image with NDAI (figure2)
+# ggplot(image_lb) + geom_point(aes(x=x,y=y,color=NDAI)) + scale_color_gradientn(colors=topo.colors(10)) + theme_bw() + theme(panel.grid = element_blank()) + facet_grid(.~image)+ coord_fixed()
+# 
+# 
+# # we can see that clouded region most likeley has positive NDAI whereas no-cloud region most likely has negative NDAI
+# 
+# # image with CORR (figure3)
+# ggplot(image_lb) + geom_point(aes(x=x,y=y,color=CORR)) + scale_color_gradientn(colors=topo.colors(10)) + theme_bw() + theme(panel.grid = element_blank()) + facet_grid(.~image)+ coord_fixed()
+# 
+# 
+# # we can't find the relationship between cloud and no-cloud by looking at CORR
+# 
+# # image with SD (figure4)
+# ggplot(image_lb) + geom_point(aes(x=x,y=y,color=SD)) + scale_color_gradientn(colors=topo.colors(10)) + theme_bw() + theme(panel.grid = element_blank()) + facet_grid(.~image)+ coord_fixed()
+
+
+```
+
+#2(a)
+```{r}
+#2(a)
+##Before we do modeling, we first check the data quality. There is no missing value for the three image datasets. First, we combine the three image data together, remove the unlabeled data (about 40% of the data are unlabeled) and convert the label to categorical data (+1 = cloud, 0 = not cloud). Then we split the total image data into training (80%) and test (20%) set. We use the 80% training data to train our models, the six classification models we choose are Logistic regression, KNN, Decision Tree, Random Forest, Support Vector Machines, and Neural Networks. We apply cross-validation for hyperparameter optimization, then use one specific model for each kind on 20% testing set and get the prediction results. Finally we compare the six models' confusion matrix and ROC curve to select the best fit model.
+
+set.seed(123)
+ind <- sample(seq_len(nrow(image)), size = floor(0.80 * nrow(image)))
+modeltraining <- image[ind, -c(1:2)]
+dim(modeltraining)
+test2 <- image[-ind, -c(1,2)]
+#training_sub <- training[ ,c(1:4)]
+
+ind2 <- sample(seq_len(nrow(modeltraining)), size = floor(0.75 * nrow(modeltraining)))
+train2 <- modeltraining[ind2,]
+validation <- modeltraining[-ind2,]
+
+
+
+```
+#2(a)
+```{r}
+# x.max <- max(image$x)
+# y.max <- max(image$y)
+# 
+# test.valid.rate <- 0.2
+# x.test <- round(seq(from=1, to=x.max-1, length.out = round(x.max * sqrt(test.valid.rate))))
+# y.test <- round(seq(from=1, to=y.max-1, length.out = round(y.max * sqrt(test.valid.rate))))
+# x.valid <- x.test + 1
+# y.valid <- y.test + 1
+# test <- image %>% filter(x %in% x.test, y %in% y.test)
+# valid <- image %>% filter(x %in% x.valid, y %in% y.valid)
+# train <- image %>% filter(!x %in% x.test, !x %in% x.valid)
+```
+
+
+2(d)
+```{r}
+source("CVgeneric.R")
+```
+
+3(a)
+
+### logistic regression
+```{r}
+trainCV <- rbind(train2, validation)
+trainCV <- trainCV %>% filter(label != 0)
+# NDAI, SD, CORR, DF, CF, BF, AF, AN
+trainCV.x <- trainCV %>% dplyr::select(NDAI, SD, CORR)
+trainCV.y <- trainCV$label
+trainCV.y <- as.factor(trainCV.y)
+testCV.x <- test %>% 
+  filter(label != 0) %>%
+  dplyr::select(NDAI, SD, CORR)
+testCV.y <- test2 %>% filter(label != 0)
+testCV.y <- testCV.y$label
+# trainCV.y[trainCV.y == 0] = 1
+# for test
+train.x <- trainCV.x
+train.y <- trainCV.y
+
+```
+
+```{r}
+model_lr <- CVgeneric(trainCV.x, trainCV.y, classifier = lrClassifier)
+model_lr$lossList
+test_lr <- round(predict(model_lr$fit, testCV.x, type = "response"))
+test_lr[test_lr==0] = -1
+err_rate(test_lr, testCV.y)
+```
+
+### LDA
+```{r}
+ldaClassifier <- function(train.x, train.y, valid.x){
+  # currFormula <- as.formula(paste(colnames(train.y), '~', paste(colnames(train.x), collapse = '+'), sep = ''))
+  fit.lda <- lda(train.x, train.y)
+  pred.lda <- predict(fit.lda, valid.x)
+  return(list(pred=pred.lda$class, fit=fit.lda))
+}
+
+
+model_lda <- CVgeneric(trainCV.x, trainCV.y, classifier = ldaClassifier)
+model_lda$lossList
+test_lda <- predict(model_lda$fit, testCV.x)
+err_rate(test_lda$class, testCV.y)
+```
+
+
+###QDA
+```{r}
+model_qda <- CVgeneric(trainCV.x, trainCV.y, classifier = qdaClassifier)
+model_qda$lossList
+test_qda <- predict(model_qda$fit, testCV.x)
+err_rate(test_qda$class, testCV.y)
+print(1-model_qda$lossList)
+print(1-err_rate(test_qda$class, testCV.y))
+```
+
+```{r DataSplit, echo = FALSE, message=FALSE, warning=FALSE, cache = TRUE}
+##split into training, validation and test sets
+training_size <- 40000
+test_size <- 8000
+set.seed(0)
+sample_index <- sample(dim(image)[1], (training_size + test_size))
+training_valid_index <- sample_index[1:training_size]
+test_index <- sample_index[(training_size + 1):length(sample_index)]
+training_valid_data <- image[training_valid_index,3:6]
+test_data <- image[test_index,3:6]
+test_data.y <- test_data[1]
+test_data.x <- test_data[2:4]
+training_valid_data.y <- training_valid_data[1]
+training_valid_data.x <- training_valid_data[2:4]
+```
+
+```{r SVM, echo=FALSE, message=FALSE, warning=FALSE, cache = TRUE}
+SVM_model <- svm(label~., data = training_valid_data, type = "C-classification")
+SVM_model2 <- svm(label~., data = training_valid_data, type = "C-classification", probability = TRUE)
+SVM_pred <- predict(SVM_model,test_data, decision.values = TRUE)
+SVM_pred2 <- predict(SVM_model2,test_data, decision.values = TRUE, probability = TRUE)
+# Check accuracy using confusion matrix
+CM_SVM <- confusionMatrix(data = SVM_pred, reference = factor(image[test_index,'label']), positive = "1")
+pander(ftable(CM_SVM$table), caption = paste("Confusion Matrix of SVM"))
+# calculate the accuracy 
+print(paste('Accuracy of SVM:', mean(SVM_pred == test_data$label))) 
+```
+
+
+```{r}
+# trainCV <- rbind(train2, validation)
+# trainCV <- trainCV %>% filter(label != 0)
+# # NDAI, SD, CORR, DF, CF, BF, AF, AN
+# trainCVsvm.x <- trainCV %>% dplyr::select(label, NDAI, SD, CORR)
+# trainCV.y <- trainCV$label
+# testCV.x <- test %>% 
+#   filter(label != 0) %>%
+#   dplyr::select(NDAI, SD, CORR)
+# testCV.y <- test2 %>% filter(label != 0)
+# testCV.y <- testCV.y$label
+# # trainCV.y[trainCV.y == 0] = 1
+# # for test
+# train.x <- trainCV.x
+# train.y <- trainCV.y
+# 
+# 
+
+
+
+model_svm <- CVgeneric(training_valid_data.x, training_valid_data.y, test_data.x, classifier = svmClassifier)
+model_svm$lossList
+test_svm <- predict(model_svm$fit, testCV.x)
+err_rate(test_svm$class, testCV.y)
+print(1-model_svm$lossList)
+print(1-err_rate(test_svm$class, testCV.y))
+```
+
+```{r}
+system.time(model_svm <- CVgeneric(trainCV.x, trainCV.y, classifier = svmClassifier))
+model_svm$lossList
+test_svm <- predict(model_svm$fit, testCV.x)
+err_rate(test_svm, testCV.y)
+print(1-model_svm$lossList)
+print(1-err_rate(test_svm, testCV.y))
+```
+
+
+
+

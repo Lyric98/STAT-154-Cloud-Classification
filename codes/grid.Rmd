@@ -1,0 +1,183 @@
+---
+title: "Xlx"
+output: html_document
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# 0 Import data and library
+
+import data
+```{r}
+Img1 <- read.table("/Users/liyanran/Desktop/19Spring/STAT154/project/project2/image_data/image1.txt", quote="\"", comment.char="")
+Img2 <- read.table("/Users/liyanran/Desktop/19Spring/STAT154/project/project2/image_data/image2.txt", quote="\"", comment.char="")
+Img3 <- read.table("/Users/liyanran/Desktop/19Spring/STAT154/project/project2/image_data/image3.txt", quote="\"", comment.char="")
+
+```
+
+merge data
+```{r}
+imgName <- rep(1, nrow(Img1))
+img1 <- cbind(Img1, imgName)
+imgName <- rep(2, nrow(Img2))
+img2 <- cbind(Img2, imgName)
+imgName <- rep(3, nrow(Img3))
+img3 <- cbind(Img3, imgName)
+img <- rbind(img1, img2, img3)
+img <- cbind(1: nrow(img), img)
+Colnames <- c("No","y", "x", "label", "NDAI", "SD", "CORR", "DF", "CF", "BF", "AF", "AN", "imgName")
+colnames(img) <- Colnames
+img$x <- img$x - min(img$x) + 1
+img$y <- img$y - min(img$y) + 1
+x.max <- max(img$x)
+y.max <- max(img$y)
+```
+
+import library
+```{r}
+library(ggplot2)
+library(gridExtra)
+library(dplyr)
+library(MASS)
+library(caret)
+library(GGally)
+library(class)
+library(randomForest)
+```
+
+# 2 Preparation
+## (a) Split the entire data
+
+- average grid sample method
+
+```{r}
+test.valid.rate <- 0.2
+x.test <- round(seq(from=1, to=x.max-1, length.out = round(x.max * sqrt(test.valid.rate))))
+y.test <- round(seq(from=1, to=y.max-1, length.out = round(y.max * sqrt(test.valid.rate))))
+x.valid <- x.test + 1
+y.valid <- y.test + 1
+test <- img %>% filter(x %in% x.test, y %in% y.test)
+valid <- img %>% filter(x %in% x.valid, y %in% y.valid)
+train <- img %>% filter(!No %in% test$No, !No %in% valid$No)
+```
+
+
+
+
+
+
+##3(a)
+
+## Logistic Regression
+
+```{r Logistic Regression}
+
+source("CVgeneric.R")
+
+```
+
+
+
+```{r}
+trainCV <- rbind(train, valid)
+trainCV <- trainCV %>% filter(label != 0)
+# NDAI, SD, CORR, DF, CF, BF, AF, AN
+trainCV.x <- trainCV %>% dplyr::select(NDAI, SD, CORR)
+trainCV.y <- trainCV$label
+trainCV.y <- as.factor(trainCV.y)
+testCV.x <- test %>% 
+  filter(label != 0) %>%
+  dplyr::select(NDAI, SD, CORR)
+testCV.y <- test %>% filter(label != 0)
+testCV.y <- testCV.y$label
+# trainCV.y[trainCV.y == 0] = 1
+# for test
+train.x <- trainCV.x
+train.y <- trainCV.y
+```
+
+
+```{r}
+model_lr <- CVgeneric(trainCV.x, trainCV.y, classifier = lrClassifier)
+model_lr$lossList
+test_lr <- round(predict(model_lr$fit, testCV.x, type = "response"))
+test_lr[test_lr==0] = -1
+err_rate(test_lr, testCV.y)
+```
+
+
+### LDA
+```{r}
+model_lda <- CVgeneric(trainCV.x, trainCV.y, classifier = ldaClassifier)
+model_lda$lossList
+test_lda <- predict(model_lda$fit, testCV.x)
+err_rate(test_lda$class, testCV.y)
+```
+
+### QDA
+```{r}
+model_qda <- CVgeneric(trainCV.x, trainCV.y, classifier = qdaClassifier)
+model_qda$lossList
+test_qda <- predict(model_qda$fit, testCV.x)
+err_rate(test_qda$class, testCV.y)
+print(1-model_qda$lossList)
+print(1-err_rate(test_qda$class, testCV.y))
+```
+
+
+
+
+### knn
+
+```{r knn}
+# library(caret)
+# 
+# # 10-fold cross validation to choose the best k
+# # Fit the model on the training set
+# #training <- rbind(train2, validation)
+# 
+# set.seed(123)
+# model_knn <- train(
+#   label ~., data = trainCV, method = "knn",
+#   trControl = trainControl("cv", number = 10),
+#   preProcess = c("center","scale"),
+#   tuneLength = 10
+#   )
+# # Plot model accuracy vs different values of k
+# plot(model_knn, xlab = "Number of Neighbors")
+# # The best tuning parameter k that
+# # maximizes model accuracy
+# model_knn$bestTune
+# # Make predictions on the test data
+# predicted.classes <- model_knn %>% predict(test[2:9])
+# head(predicted.classes)
+# # Compute model accuracy rate
+# mean(predicted.classes == test2$label)
+# #ROC Curve for comparision
+# p <- predict(model_knn, newdata=subset(test2,select=c(2,3,4,5,6,7,8,9)), type="response")
+# pr <- prediction(as.numeric(predicted.classes), test2$label)
+# prf <- performance(pr, measure = "tpr", x.measure = "fpr")
+# # plot(prf)
+# auc <- performance(pr, measure = "auc")
+# auc <- auc@y.values[[1]]
+# # Check accuracy
+# CM_knn <- confusionMatrix(data=as.factor(predicted.classes), reference=test$label, positive="1")
+# pander(ftable(CM_knn$table), caption = paste("Confusion Matrix of KNN"))
+```
+
+### SVM
+```{r}
+system.time(model_svm <- CVgeneric(trainCV.x[1:10000,], trainCV.y[1:10000], classifier = svmClassifier))
+model_svm$lossList
+test_svm <- predict(model_svm$fit, testCV.x)
+err_rate(test_svm, testCV.y)
+print(1-model_svm$lossList)
+print(1-err_rate(test_svm, testCV.y))
+```
+
+
+```{r}
+y_hat = predict(model_lr$fit, testCV.x, type = "response")
+roc.curve(testCV.y, y_hat)
+```
