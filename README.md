@@ -23,4 +23,4 @@ How to reproduce this project?
 
 7) All the image files should now be in "~/figures".  
    
-8) The latex file should now compile.  Edit the analysis results as necessary. 
+8) The latex file "main.tex" should now compile.  Edit the analysis results as necessary. 
